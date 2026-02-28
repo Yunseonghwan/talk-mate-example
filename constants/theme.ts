@@ -8,9 +8,19 @@ import { Platform } from 'react-native';
 const tintColorLight = '#0a7ea4';
 const tintColorDark = '#fff';
 
+export const Spacing = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+} as const;
+
 export const Colors = {
   light: {
     text: '#11181C',
+    textSecondary: '#6B7280',
+    textTertiary: '#9CA3AF',
     background: '#fff',
     tint: tintColorLight,
     icon: '#687076',
@@ -19,6 +29,8 @@ export const Colors = {
   },
   dark: {
     text: '#ECEDEE',
+    textSecondary: '#9BA1A6',
+    textTertiary: '#6B7280',
     background: '#151718',
     tint: tintColorDark,
     icon: '#9BA1A6',
