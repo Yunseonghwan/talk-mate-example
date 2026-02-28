@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Colors, Spacing } from "@/constants/theme";
 import { useBiometricAuth } from "@/hooks/use-biometric-auth";
+import { useSessionStore } from "@/stores/session-store";
 
 const SUCCESS_DISPLAY_MS = 1500;
 
@@ -22,6 +23,8 @@ const AuthScreen = () => {
   const colors = Colors.light;
   const router = useRouter();
   const [showSuccess, setShowSuccess] = useState(false);
+  const isInitialized = useSessionStore((s) => s.isInitialized);
+  const isSessionValid = useSessionStore((s) => s.isSessionValid);
   const {
     hasHardware,
     isEnrolled,
@@ -62,6 +65,7 @@ const AuthScreen = () => {
     });
 
     if (result.success) {
+      await useSessionStore.getState().refreshSession();
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
@@ -71,6 +75,19 @@ const AuthScreen = () => {
       showEnrollAlert();
     }
   };
+
+  if (!isInitialized || isSessionValid()) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.tint} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            {isInitialized ? "이동 중..." : "세션 확인 중..."}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <>

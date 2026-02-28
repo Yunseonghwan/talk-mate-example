@@ -7,6 +7,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 
+import { SessionGuard } from "@/components/session-guard";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 export const unstable_settings = {
@@ -18,6 +19,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <SessionGuard />
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="landing" options={{ headerShown: false }} />
