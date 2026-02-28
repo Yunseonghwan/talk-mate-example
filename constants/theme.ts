@@ -16,6 +16,10 @@ export const Spacing = {
   xl: 32,
 } as const;
 
+export const Layout = {
+  horizontalPadding: 20,
+} as const;
+
 export const Colors = {
   light: {
     text: '#11181C',
