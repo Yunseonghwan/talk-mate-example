@@ -1,8 +1,16 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { MenuModal } from "@/components/menu-modal";
 import { Colors, Layout, Spacing } from "@/constants/theme";
 import { useTokenStore } from "@/stores/token-store";
 
@@ -12,10 +20,33 @@ const MIC_INNER_SIZE = 100;
 const MIC_OUTER_SIZE = 120;
 
 const LandingScreen = () => {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
+  const [menuVisible, setMenuVisible] = useState(false);
   const count = useTokenStore((s) => s.count);
   const fetchTokens = useTokenStore((s) => s.fetchTokens);
   const consumeTokens = useTokenStore((s) => s.consumeTokens);
+
+  const menuItems = [
+    {
+      id: "chat-history",
+      label: "대화기록",
+      icon: "chat" as const,
+      onPress: () => router.push("/chat-history"),
+    },
+    {
+      id: "token-purchase",
+      label: "토큰구매",
+      icon: "monetization-on" as const,
+      onPress: () => router.push("/token-purchase"),
+    },
+    {
+      id: "permissions",
+      label: "권한설정",
+      icon: "settings" as const,
+      onPress: () => router.push("/permissions"),
+    },
+  ];
 
   useEffect(() => {
     void fetchTokens().finally(() => setIsLoading(false));
@@ -53,7 +84,10 @@ const LandingScreen = () => {
             <Text style={styles.profileText}>AI 선생님</Text>
           </Pressable>
 
-          <Pressable style={styles.iconButton}>
+          <Pressable
+            style={styles.iconButton}
+            onPress={() => setMenuVisible(true)}
+          >
             <MaterialIcons
               name="more-vert"
               size={28}
@@ -110,6 +144,12 @@ const LandingScreen = () => {
           <Text style={styles.primaryButtonText}>대화시작하기(10토큰)</Text>
         </Pressable>
       </View>
+
+      <MenuModal
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        items={menuItems}
+      />
     </SafeAreaView>
   );
 };

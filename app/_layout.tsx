@@ -23,6 +23,18 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="landing" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="chat-history"
+          options={{ headerShown: false, title: "대화 기록" }}
+        />
+        <Stack.Screen
+          name="token-purchase"
+          options={{ headerShown: false, title: "토큰 구매" }}
+        />
+        <Stack.Screen
+          name="permissions"
+          options={{ headerShown: false, title: "권한 설정" }}
+        />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
