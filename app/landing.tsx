@@ -53,9 +53,9 @@ const LandingScreen = () => {
   };
 
   const handleChatPress = (): void => {
-    if (consumeTokens(10)) {
-      router.push("/chat-start");
-    }
+    // if (consumeTokens(10)) {
+    router.push("/chat-start");
+    // }
   };
 
   return (
