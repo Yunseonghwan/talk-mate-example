@@ -35,6 +35,14 @@ export default function RootLayout() {
           name="permissions"
           options={{ headerShown: false, title: "권한 설정" }}
         />
+        <Stack.Screen
+          name="chat-start"
+          options={{ headerShown: false, title: "대화 시작" }}
+        />
+        <Stack.Screen
+          name="read-aloud"
+          options={{ headerShown: false, title: "읽어주기" }}
+        />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

@@ -1,13 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MenuModal } from "@/components/menu-modal";
@@ -54,13 +48,13 @@ const LandingScreen = () => {
 
   const handleReadPress = (): void => {
     if (consumeTokens(5)) {
-      // 읽어주기 로직
+      router.push("/read-aloud");
     }
   };
 
   const handleChatPress = (): void => {
     if (consumeTokens(10)) {
-      // 대화시작하기 로직
+      router.push("/chat-start");
     }
   };
 
