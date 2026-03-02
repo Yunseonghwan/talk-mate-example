@@ -9,6 +9,18 @@ import { Colors, Layout, Spacing } from "@/constants/theme";
 const ChatStartScreen = () => {
   const router = useRouter();
 
+  const handleWebViewMessage = (event: {
+    nativeEvent: { data: string };
+  }): void => {
+    const { data } = event.nativeEvent;
+    try {
+      const parsed = JSON.parse(data) as unknown;
+      console.log("[WebView -> Native]", JSON.stringify(parsed, null, 2));
+    } catch {
+      console.log("[WebView -> Native]", data);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <View style={styles.header}>
@@ -27,6 +39,7 @@ const ChatStartScreen = () => {
           style={styles.webView}
           originWhitelist={["*"]}
           javaScriptEnabled
+          onMessage={handleWebViewMessage}
         />
       </View>
     </SafeAreaView>
