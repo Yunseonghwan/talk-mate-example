@@ -1,7 +1,14 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
 import { useCallback, useRef } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { WebViewMessageEvent } from "react-native-webview";
 import { WebView } from "react-native-webview";
@@ -64,12 +71,21 @@ const ChatStartScreen = () => {
             const result = await requestPermission();
             if (result === "granted") {
               sendMessageToWeb(CONVERSATION_STARTED_MESSAGE);
+            } else {
+              Alert.alert(
+                "권한 필요",
+                "마이크 권한이 필요합니다. 앱 설정에서 권한을 허용한 후 이용해주세요.",
+                [
+                  { text: "취소", style: "cancel" },
+                  {
+                    text: "설정 열기",
+                    onPress: () => void Linking.openSettings(),
+                  },
+                ],
+              );
             }
           })();
         } else if (path === "conversation_stop") {
-          router.replace("/landing");
-        }
-        if (path === "conversation_stop") {
           router.replace("/landing");
         }
         return false;
