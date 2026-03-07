@@ -18,6 +18,7 @@ export type UseAudioPermissionsReturn = {
   isLoading: boolean;
   isGranted: boolean;
   checkPermission: () => Promise<void>;
+  checkAndGetStatus: () => Promise<PermissionStatus>;
   requestPermission: () => Promise<PermissionStatus>;
 };
 
@@ -40,6 +41,17 @@ export function useAudioPermissions(): UseAudioPermissionsReturn {
     checkPermission();
   }, [checkPermission]);
 
+  const checkAndGetStatus = useCallback(async (): Promise<PermissionStatus> => {
+    try {
+      const result = await check(MICROPHONE_PERMISSION);
+      setStatus(result);
+      return result;
+    } catch {
+      setStatus("unavailable");
+      return "unavailable";
+    }
+  }, []);
+
   const requestPermission = useCallback(async (): Promise<PermissionStatus> => {
     setIsLoading(true);
     try {
@@ -59,6 +71,7 @@ export function useAudioPermissions(): UseAudioPermissionsReturn {
     isLoading,
     isGranted: status === "granted",
     checkPermission,
+    checkAndGetStatus,
     requestPermission,
   };
 }
