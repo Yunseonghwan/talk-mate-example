@@ -15,6 +15,7 @@ import WebView, { type WebViewMessageEvent } from "react-native-webview";
 import MicSection from "@/components/mic-section";
 import { useAudioPermissions } from "@/hooks/use-audio-permissions";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
+import { useRecordingStore } from "@/stores/recording-store";
 
 const BRIDGE_JS = `
 (function() {
@@ -34,6 +35,7 @@ const ConversationScreen = () => {
   const { requestPermission } = useAudioPermissions();
   const { isRecording, durationMs, startRecording, stopAndSave } =
     useVoiceRecorder();
+  const addRecording = useRecordingStore((state) => state.addRecording);
 
   const handleConversationStart = useCallback(async () => {
     const granted = await requestPermission();
@@ -55,12 +57,13 @@ const ConversationScreen = () => {
   }, [requestPermission, startRecording]);
 
   const handleConversationStop = useCallback(async () => {
+    const currentDuration = durationMs;
     const savedUri = await stopAndSave();
     if (savedUri) {
-      console.log("[Recording saved]", savedUri);
+      await addRecording(savedUri, currentDuration);
     }
     router.replace("/landing");
-  }, [stopAndSave]);
+  }, [stopAndSave, durationMs, addRecording]);
 
   const handleMessage = useCallback(
     (event: WebViewMessageEvent) => {
