@@ -1,323 +1,186 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { router } from "expo-router";
+import { useEffect } from "react";
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Colors, Spacing } from "@/constants/theme";
+import { Colors } from "@/constants/theme";
 import { useBiometricAuth } from "@/hooks/use-biometric-auth";
-import { useSessionStore } from "@/stores/session-store";
-
-const SUCCESS_DISPLAY_MS = 1500;
+import { useSession } from "@/hooks/use-session";
 
 const AuthScreen = () => {
-  const colors = Colors.light;
-  const router = useRouter();
-  const [showSuccess, setShowSuccess] = useState(false);
-  const isInitialized = useSessionStore((s) => s.isInitialized);
-  const isSessionValid = useSessionStore((s) => s.isSessionValid);
-  const {
-    hasHardware,
-    isEnrolled,
-    availableMethods,
-    authenticate,
-    isLoading,
-    error,
-    clearError,
-  } = useBiometricAuth();
-
-  const canAuthenticate = availableMethods.length > 0;
-
-  const showEnrollAlert = useCallback((): void => {
-    Alert.alert(
-      "생체 인증 등록 필요",
-      "생체 인증을 사용하려면 핸드폰 설정에서 생체 인증(지문, 얼굴, 홍채)을 등록해주세요.",
-      [{ text: "확인" }],
-    );
-  }, []);
+  const { authenticate, isLoading, error, isSuccess, clearError } =
+    useBiometricAuth();
+  const { isInitialized, hasValidSession, refreshSession } = useSession();
 
   useEffect(() => {
-    if (!isLoading && hasHardware && !isEnrolled) {
-      showEnrollAlert();
+    if (isInitialized && hasValidSession) {
+      router.replace("/landing");
     }
-  }, [isLoading, hasHardware, isEnrolled, showEnrollAlert]);
+  }, [isInitialized, hasValidSession]);
 
-  const handleBiometricPress = async (): Promise<void> => {
-    if (!canAuthenticate) return;
-
-    if (!isEnrolled) {
-      showEnrollAlert();
-      return;
+  useEffect(() => {
+    if (error) {
+      Alert.alert("생체인증 오류", error, [
+        { text: "확인", onPress: clearError },
+      ]);
     }
+  }, [error, clearError]);
 
-    clearError();
-    const result = await authenticate({
-      promptMessage: "생체 인증을 진행해주세요",
-    });
+  useEffect(() => {
+    if (!isSuccess) return;
 
-    if (result.success) {
-      await useSessionStore.getState().refreshSession();
-      setShowSuccess(true);
-      setTimeout(() => {
-        setShowSuccess(false);
-        router.replace("/landing");
-      }, SUCCESS_DISPLAY_MS);
-    } else if (result.error?.includes("등록")) {
-      showEnrollAlert();
-    }
-  };
+    const proceedAfterAuth = async (): Promise<void> => {
+      await refreshSession();
+      router.replace("/landing");
+    };
 
-  if (!isInitialized || isSessionValid()) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.tint} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            {isInitialized ? "이동 중..." : "세션 확인 중..."}
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+    proceedAfterAuth();
+  }, [isSuccess, refreshSession]);
 
   return (
-    <>
-      <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>보안인증</Text>
-        </View>
-
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          안전한 로그인을 위해 인증 방법을 선택하세요
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
+        <Text style={styles.title}>보안인증</Text>
+        <Text style={styles.subtitle}>
+          안전한 로그인을 위해 인증을 진행해 주세요
         </Text>
 
-        {error !== null && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-            <Pressable onPress={clearError} style={styles.errorDismiss}>
-              <Text style={styles.errorDismissText}>확인</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {isLoading && availableMethods.length === 0 && error === null ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.tint} />
-            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-              생체 인증 확인 중...
-            </Text>
-          </View>
-        ) : !isLoading && !hasHardware ? (
-          <View style={styles.unavailableContainer}>
-            <Text
-              style={[styles.unavailableText, { color: colors.textSecondary }]}
-            >
-              이 기기에서는 생체 인증을 지원하지 않습니다.
-            </Text>
-          </View>
-        ) : !isLoading && !isEnrolled ? (
-          <View style={styles.unavailableContainer}>
-            <Text
-              style={[styles.unavailableText, { color: colors.textSecondary }]}
-            >
-              생체 정보가 등록되지 않았습니다. 기기 설정에서 등록해주세요.
-            </Text>
-          </View>
-        ) : (
+        <View style={styles.buttonContainer}>
           <Pressable
             style={({ pressed }) => [
-              styles.authButton,
-              {
-                backgroundColor: "#fff",
-                borderColor: "#E5E7EB",
-                opacity: canAuthenticate ? 1 : 0.5,
-              },
-              pressed && canAuthenticate && styles.authButtonPressed,
+              styles.button,
+              pressed && styles.buttonPressed,
+              isLoading && styles.buttonDisabled,
             ]}
-            onPress={() => void handleBiometricPress()}
-            disabled={!canAuthenticate}
+            onPress={authenticate}
+            disabled={isLoading}
           >
-            <View style={styles.iconWrapper}>
-              <MaterialIcons
-                name="security"
-                size={32}
-                color={colors.tint}
-              />
-            </View>
-            <View style={styles.textWrapper}>
-              <Text style={[styles.buttonTitle, { color: colors.text }]}>
-                생체 인증
-              </Text>
-              <Text
-                style={[
-                  styles.buttonDescription,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                지문, 얼굴, 홍채 인식으로 안전하게 로그인
-              </Text>
-            </View>
             <MaterialIcons
-              name="chevron-right"
-              size={24}
-              color={colors.textTertiary}
+              name="fingerprint"
+              size={64}
+              color={Colors.light.tint}
+              style={styles.icon}
             />
+            <Text style={styles.buttonTitle}>생체인증</Text>
+            <Text style={styles.buttonDescription}>
+              지문 또는 얼굴 인식을 통해{"\n"}안전하게 로그인합니다
+            </Text>
           </Pressable>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+        </View>
+      </View>
 
       <Modal
-        visible={showSuccess}
+        visible={isSuccess}
         transparent
         animationType="fade"
         statusBarTranslucent
       >
-        <View style={styles.successOverlay}>
-          <View style={styles.successContent}>
+        <View style={styles.overlay}>
+          <View style={styles.successCard}>
             <MaterialIcons
               name="check-circle"
               size={72}
-              color="#22C55E"
+              color="#22c55e"
+              style={styles.successIcon}
             />
-            <Text style={styles.successText}>인증 성공</Text>
+            <Text style={styles.successTitle}>인증 성공</Text>
+            <Text style={styles.successDescription}>
+              안전하게 로그인되었습니다.
+            </Text>
           </View>
         </View>
       </Modal>
-    </>
+    </SafeAreaView>
   );
 };
-
-export default AuthScreen;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.light.background,
   },
-  scrollContent: {
-    padding: Spacing.lg,
-    paddingTop: Spacing.md,
-  },
-  header: {
-    marginBottom: Spacing.lg,
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 32,
   },
   title: {
     fontSize: 28,
     fontWeight: "700",
     color: Colors.light.text,
+    marginBottom: 12,
   },
   subtitle: {
     fontSize: 16,
-    color: Colors.light.textSecondary,
+    color: Colors.light.icon,
     lineHeight: 24,
-    marginBottom: Spacing.xl,
+    marginBottom: 48,
   },
-  errorContainer: {
-    flexDirection: "row",
+  buttonContainer: {
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FEF2F2",
-    padding: Spacing.md,
-    borderRadius: 8,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderColor: "#FECACA",
   },
-  errorText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#DC2626",
-  },
-  errorDismiss: {
-    paddingHorizontal: Spacing.sm,
-  },
-  errorDismissText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#DC2626",
-  },
-  loadingContainer: {
+  button: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: Spacing.xl * 2,
-    gap: Spacing.md,
-  },
-  loadingText: {
-    fontSize: 16,
-  },
-  unavailableContainer: {
-    paddingVertical: Spacing.xl,
-    alignItems: "center",
-  },
-  unavailableText: {
-    fontSize: 16,
-    textAlign: "center",
-  },
-  authButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderRadius: 12,
+    paddingVertical: 32,
+    paddingHorizontal: 48,
+    borderRadius: 16,
+    backgroundColor: "#f4f4f5",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#e4e4e7",
+    minWidth: 280,
   },
-  authButtonPressed: {
-    opacity: 0.7,
+  buttonPressed: {
+    opacity: 0.8,
   },
-  iconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#EFF6FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: Spacing.md,
+  buttonDisabled: {
+    opacity: 0.6,
   },
-  textWrapper: {
-    flex: 1,
+  icon: {
+    marginBottom: 16,
   },
   buttonTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: Colors.light.text,
-    marginBottom: Spacing.xs,
-  },
-  buttonDescription: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    lineHeight: 20,
-  },
-  successOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  successContent: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: Spacing.xl,
-    alignItems: "center",
-    gap: Spacing.md,
-    minWidth: 200,
-  },
-  successText: {
     fontSize: 18,
     fontWeight: "600",
     color: Colors.light.text,
+    marginBottom: 8,
+  },
+  buttonDescription: {
+    fontSize: 14,
+    color: Colors.light.icon,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  overlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  successCard: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 48,
+    borderRadius: 16,
+    backgroundColor: Colors.light.background,
+    minWidth: 280,
+  },
+  successIcon: {
+    marginBottom: 16,
+  },
+  successTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: Colors.light.text,
+    marginBottom: 8,
+  },
+  successDescription: {
+    fontSize: 14,
+    color: Colors.light.icon,
+    textAlign: "center",
   },
 });
+
+export default AuthScreen;

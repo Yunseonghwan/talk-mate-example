@@ -1,50 +1,53 @@
-import * as SecureStore from "expo-secure-store";
-import { create } from "zustand";
+import * as SecureStore from 'expo-secure-store';
+import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
-const TOKEN_KEY = "user_tokens";
+const TOKEN_STORAGE_KEY = 'talk_mate_tokens';
+const DEFAULT_TOKENS = 100;
 
-type TokenState = {
-  count: number;
-  /** 토큰 가져오기 - SecureStore에서 로드 */
-  fetchTokens: () => Promise<void>;
-  /** 토큰 저장하기 - SecureStore에 저장 */
-  saveTokens: (count: number) => Promise<void>;
-  /** 토큰 사용하기 - count만큼 차감 후 저장 */
-  consumeTokens: (amount: number) => boolean;
+type PersistedTokenState = {
+  tokens: number;
 };
 
-export const useTokenStore = create<TokenState>((set, get) => ({
-  count: 0,
+type TokenState = PersistedTokenState & {
+  saveTokens: (amount: number) => void;
+  useTokens: (amount: number) => boolean;
+};
 
-  fetchTokens: async (): Promise<void> => {
-    try {
-      const stored = await SecureStore.getItemAsync(TOKEN_KEY);
-      if (stored) {
-        const parsed = parseInt(stored, 10);
-        set({ count: Number.isNaN(parsed) ? 0 : parsed });
-      } else {
-        set({ count: 0 });
-      }
-    } catch {
-      set({ count: 0 });
+const secureStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    return SecureStore.getItemAsync(name);
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    await SecureStore.setItemAsync(name, value);
+  },
+  removeItem: async (name: string): Promise<void> => {
+    await SecureStore.deleteItemAsync(name);
+  },
+};
+
+export const useTokenStore = create<TokenState>()(
+  persist(
+    (set, get) => ({
+      tokens: DEFAULT_TOKENS,
+
+      saveTokens: (amount: number): void => {
+        set((state) => ({ tokens: state.tokens + amount }));
+      },
+
+      useTokens: (amount: number): boolean => {
+        const { tokens } = get();
+        if (tokens < amount) return false;
+        set({ tokens: tokens - amount });
+        return true;
+      },
+    }),
+    {
+      name: TOKEN_STORAGE_KEY,
+      storage: createJSONStorage<PersistedTokenState>(() => secureStorage),
+      partialize: (state) => ({
+        tokens: state.tokens,
+      }),
     }
-  },
-
-  saveTokens: async (count: number): Promise<void> => {
-    const value = Math.max(0, count);
-    try {
-      await SecureStore.setItemAsync(TOKEN_KEY, String(value));
-      set({ count: value });
-    } catch {
-      // ignore
-    }
-  },
-
-  consumeTokens: (amount: number): boolean => {
-    const { count } = get();
-    if (amount <= 0 || count < amount) return false;
-    const newCount = count - amount;
-    void useTokenStore.getState().saveTokens(newCount);
-    return true;
-  },
-}));
+  )
+);

@@ -1,71 +1,75 @@
-import * as SecureStore from "expo-secure-store";
-import { create } from "zustand";
+import * as SecureStore from 'expo-secure-store';
+import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
-const SESSION_KEY = "auth_session";
+const SESSION_STORAGE_KEY = 'talk_mate_session';
 const SESSION_DURATION_MS = 10 * 60 * 1000; // 10분
 
-type SessionData = {
-  expiresAt: number;
+type PersistedSessionState = {
+  sessionTimestamp: number | null;
 };
 
-type SessionState = {
-  expiresAt: number | null;
-  isInitialized: boolean;
-  initialize: () => Promise<void>;
+type SessionState = PersistedSessionState & {
   refreshSession: () => Promise<void>;
-  isSessionValid: () => boolean;
   clearSession: () => Promise<void>;
+  isSessionValid: () => boolean;
 };
 
-export const useSessionStore = create<SessionState>((set, get) => ({
-  expiresAt: null,
-  isInitialized: false,
+export const isSessionExpired = (timestamp: number): boolean => {
+  return Date.now() > timestamp + SESSION_DURATION_MS;
+};
 
-  initialize: async (): Promise<void> => {
-    if (get().isInitialized) return;
+const secureStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    return SecureStore.getItemAsync(name);
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    await SecureStore.setItemAsync(name, value);
+  },
+  removeItem: async (name: string): Promise<void> => {
+    await SecureStore.deleteItemAsync(name);
+  },
+};
 
-    try {
-      const stored = await SecureStore.getItemAsync(SESSION_KEY);
-      if (stored) {
-        const data = JSON.parse(stored) as SessionData;
-        const expiresAt = data.expiresAt;
-        if (typeof expiresAt === "number" && Date.now() < expiresAt) {
-          set({ expiresAt, isInitialized: true });
-        } else {
-          await SecureStore.deleteItemAsync(SESSION_KEY);
-          set({ expiresAt: null, isInitialized: true });
+export const useSessionStore = create<SessionState>()(
+  persist(
+    (set, get) => ({
+      sessionTimestamp: null,
+
+      refreshSession: async (): Promise<void> => {
+        const timestamp = Date.now();
+        set({ sessionTimestamp: timestamp });
+      },
+
+      clearSession: async (): Promise<void> => {
+        set({ sessionTimestamp: null });
+      },
+
+      isSessionValid: (): boolean => {
+        const { sessionTimestamp } = get();
+        if (sessionTimestamp === null) return false;
+        return !isSessionExpired(sessionTimestamp);
+      },
+    }),
+    {
+      name: SESSION_STORAGE_KEY,
+      storage: createJSONStorage<PersistedSessionState>(() => secureStorage),
+      partialize: (state) => ({
+        sessionTimestamp: state.sessionTimestamp,
+      }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as PersistedSessionState | undefined;
+        if (!persisted?.sessionTimestamp) {
+          return { ...currentState, sessionTimestamp: null };
         }
-      } else {
-        set({ expiresAt: null, isInitialized: true });
-      }
-    } catch {
-      set({ expiresAt: null, isInitialized: true });
+        if (isSessionExpired(persisted.sessionTimestamp)) {
+          return { ...currentState, sessionTimestamp: null };
+        }
+        return {
+          ...currentState,
+          sessionTimestamp: persisted.sessionTimestamp,
+        };
+      },
     }
-  },
-
-  refreshSession: async (): Promise<void> => {
-    const expiresAt = Date.now() + SESSION_DURATION_MS;
-    const data: SessionData = { expiresAt };
-    try {
-      await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(data));
-      set({ expiresAt });
-    } catch {
-      set({ expiresAt: null });
-    }
-  },
-
-  isSessionValid: (): boolean => {
-    const { expiresAt } = get();
-    if (expiresAt === null) return false;
-    return Date.now() < expiresAt;
-  },
-
-  clearSession: async (): Promise<void> => {
-    try {
-      await SecureStore.deleteItemAsync(SESSION_KEY);
-    } catch {
-      // ignore
-    }
-    set({ expiresAt: null });
-  },
-}));
+  )
+);

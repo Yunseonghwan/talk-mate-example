@@ -1,59 +1,48 @@
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-
-import { Colors, Layout, Spacing } from "@/constants/theme";
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { router } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ReadAloudScreen = () => {
-  const router = useRouter();
-
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color={Colors.light.text} />
+          <MaterialIcons name="arrow-back" size={24} color="#11181C" />
         </Pressable>
         <Text style={styles.title}>읽어주기</Text>
-      </View>
-      <View style={styles.content}>
-        <Text style={styles.placeholderText}>읽어주기 화면</Text>
+        <View style={styles.placeholder} />
       </View>
     </SafeAreaView>
   );
 };
 
-export default ReadAloudScreen;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Layout.horizontalPadding,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
   backButton: {
-    marginRight: Spacing.sm,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: 18,
-    fontWeight: "600",
-    color: Colors.light.text,
+    fontWeight: '600',
+    color: '#11181C',
   },
-  content: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: Layout.horizontalPadding,
-  },
-  placeholderText: {
-    fontSize: 16,
-    color: Colors.light.textSecondary,
+  placeholder: {
+    width: 40,
   },
 });
+
+export default ReadAloudScreen;
