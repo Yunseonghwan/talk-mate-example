@@ -2,9 +2,12 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 
+import AudioLevelMeter from "@/components/audio-level-meter";
+
 type MicSectionProps = {
   isRecording?: boolean;
   durationMs?: number;
+  meteringDb?: number;
   title?: string;
   subtitle?: string;
 };
@@ -19,6 +22,7 @@ const formatDuration = (ms: number): string => {
 const MicSection = ({
   isRecording = false,
   durationMs = 0,
+  meteringDb = -160,
   title = "대화시작하기",
   subtitle = "아래 버튼을 눌러서 AI와 대화를 시작해 보세요",
 }: MicSectionProps): React.JSX.Element => {
@@ -70,6 +74,7 @@ const MicSection = ({
 
       {isRecording ? (
         <>
+          <AudioLevelMeter meteringDb={meteringDb} isActive={isRecording} />
           <Text style={styles.recordingText}>녹음 중...</Text>
           <Text style={styles.durationText}>{formatDuration(durationMs)}</Text>
         </>
@@ -95,7 +100,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#007AFF",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 32,
+    marginBottom: 24,
   },
   outerCircleRecording: {
     backgroundColor: "#E53935",
@@ -129,6 +134,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#E53935",
     textAlign: "center",
+    marginTop: 16,
     marginBottom: 8,
   },
   durationText: {

@@ -1,10 +1,11 @@
 import {
   AudioModule,
-  RecordingPresets,
+  type RecordingOptions,
   setAudioModeAsync,
   useAudioRecorder,
   useAudioRecorderState,
 } from "expo-audio";
+import { AudioQuality, IOSOutputFormat } from "expo-audio/src/RecordingConstants";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type VoiceRecorderStatus = "idle" | "recording" | "saving";
@@ -13,16 +14,45 @@ export type UseVoiceRecorderReturn = {
   status: VoiceRecorderStatus;
   isRecording: boolean;
   durationMs: number;
+  metering: number;
   startRecording: () => Promise<void>;
   stopAndSave: () => Promise<string | null>;
 };
+
+const RECORDING_OPTIONS: RecordingOptions = {
+  isMeteringEnabled: true,
+  extension: ".m4a",
+  sampleRate: 44100,
+  numberOfChannels: 2,
+  bitRate: 128000,
+  android: {
+    outputFormat: "mpeg4",
+    audioEncoder: "aac",
+  },
+  ios: {
+    outputFormat: IOSOutputFormat.MPEG4AAC,
+    audioQuality: AudioQuality.MAX,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  web: {
+    mimeType: "audio/webm",
+    bitsPerSecond: 128000,
+  },
+};
+
+const METERING_INTERVAL_MS = 80;
 
 export function useVoiceRecorder(): UseVoiceRecorderReturn {
   const [status, setStatus] = useState<VoiceRecorderStatus>("idle");
   const permissionReady = useRef(false);
 
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const recorderState = useAudioRecorderState(audioRecorder, 500);
+  const audioRecorder = useAudioRecorder(RECORDING_OPTIONS);
+  const recorderState = useAudioRecorderState(
+    audioRecorder,
+    METERING_INTERVAL_MS,
+  );
 
   useEffect(() => {
     const setup = async (): Promise<void> => {
@@ -68,6 +98,7 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
     status,
     isRecording: status === "recording",
     durationMs: recorderState.durationMillis ?? 0,
+    metering: recorderState.metering ?? -160,
     startRecording,
     stopAndSave,
   };

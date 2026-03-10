@@ -33,7 +33,7 @@ const BRIDGE_JS = `
 const ConversationScreen = () => {
   const webViewRef = useRef<WebView>(null);
   const { requestPermission } = useAudioPermissions();
-  const { isRecording, durationMs, startRecording, stopAndSave } =
+  const { isRecording, durationMs, metering, startRecording, stopAndSave } =
     useVoiceRecorder();
   const addRecording = useRecordingStore((state) => state.addRecording);
 
@@ -107,7 +107,11 @@ const ConversationScreen = () => {
 
         {isRecording && (
           <View style={styles.micOverlay} pointerEvents="none">
-            <MicSection isRecording={isRecording} durationMs={durationMs} />
+            <MicSection
+              isRecording={isRecording}
+              durationMs={durationMs}
+              meteringDb={metering}
+            />
           </View>
         )}
       </View>
