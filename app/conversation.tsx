@@ -12,7 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import WebView, { type WebViewMessageEvent } from "react-native-webview";
 
+import MicSection from "@/components/mic-section";
 import { useAudioPermissions } from "@/hooks/use-audio-permissions";
+import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 
 const BRIDGE_JS = `
 (function() {
@@ -30,6 +32,8 @@ const BRIDGE_JS = `
 const ConversationScreen = () => {
   const webViewRef = useRef<WebView>(null);
   const { requestPermission } = useAudioPermissions();
+  const { isRecording, durationMs, startRecording, stopAndSave } =
+    useVoiceRecorder();
 
   const handleConversationStart = useCallback(async () => {
     const granted = await requestPermission();
@@ -37,6 +41,7 @@ const ConversationScreen = () => {
       webViewRef.current?.injectJavaScript(
         `window.dispatchEvent(new CustomEvent('nativeMessage', { detail: { type: 'permission_granted' } })); true;`,
       );
+      await startRecording();
     } else {
       Alert.alert(
         "마이크 권한 필요",
@@ -47,11 +52,15 @@ const ConversationScreen = () => {
         ],
       );
     }
-  }, [requestPermission]);
+  }, [requestPermission, startRecording]);
 
   const handleConversationStop = useCallback(async () => {
-    router.back();
-  }, []);
+    const savedUri = await stopAndSave();
+    if (savedUri) {
+      console.log("[Recording saved]", savedUri);
+    }
+    router.replace("/landing");
+  }, [stopAndSave]);
 
   const handleMessage = useCallback(
     (event: WebViewMessageEvent) => {
@@ -60,16 +69,16 @@ const ConversationScreen = () => {
 
       switch (data) {
         case "conversation_start":
-          handleConversationStart();
+          void handleConversationStart();
           break;
         case "conversation_stop":
-          handleConversationStop();
+          void handleConversationStop();
           break;
         default:
           console.log("unhandled message:", data);
       }
     },
-    [handleConversationStart],
+    [handleConversationStart, handleConversationStop],
   );
 
   return (
@@ -81,16 +90,23 @@ const ConversationScreen = () => {
         <Text style={styles.title}>대화하기</Text>
         <View style={styles.placeholder} />
       </View>
-      <View style={{ flex: 1 }}>
+
+      <View style={styles.body}>
         <WebView
           ref={webViewRef}
           style={styles.webview}
-          source={{ uri: "http://192.168.0.3:5173/" }}
+          source={{ uri: "http://10.74.117.30:5173/" }}
           originWhitelist={["*"]}
           javaScriptEnabled={true}
           injectedJavaScriptBeforeContentLoaded={BRIDGE_JS}
           onMessage={handleMessage}
         />
+
+        {isRecording && (
+          <View style={styles.micOverlay} pointerEvents="none">
+            <MicSection isRecording={isRecording} durationMs={durationMs} />
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -122,8 +138,17 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 40,
   },
+  body: {
+    flex: 1,
+  },
   webview: {
     flex: 1,
+  },
+  micOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
   },
 });
 
