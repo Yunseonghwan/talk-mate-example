@@ -1,12 +1,16 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import MenuModal from "@/components/menu-modal";
 
 import MicSection from "@/components/mic-section";
+import {
+  TOKEN_COST_CONVERSATION,
+  TOKEN_COST_READ_ALOUD,
+} from "@/constants/tokens";
 import { useSession } from "@/hooks/use-session";
 import {
   isAnnualSubscriptionActive,
@@ -42,13 +46,43 @@ const LandingScreen = () => {
     }
   }, [isInitialized, hasValidSession]);
 
-  const handleStartConversation = () => {
+  const handleStartConversation = useCallback((): void => {
+    refreshSubscriptionStatus();
+    const state = useTokenStore.getState();
+    if (
+      isAnnualSubscriptionActive(
+        state.hasAnnualSubscription,
+        state.subscriptionExpiresAt,
+      )
+    ) {
+      router.push("/conversation");
+      return;
+    }
+    if (!state.useTokens(TOKEN_COST_CONVERSATION)) {
+      router.push("/token-purchase");
+      return;
+    }
     router.push("/conversation");
-  };
+  }, [refreshSubscriptionStatus]);
 
-  const handleReadAloud = () => {
+  const handleReadAloud = useCallback((): void => {
+    refreshSubscriptionStatus();
+    const state = useTokenStore.getState();
+    if (
+      isAnnualSubscriptionActive(
+        state.hasAnnualSubscription,
+        state.subscriptionExpiresAt,
+      )
+    ) {
+      router.push("/read-aloud");
+      return;
+    }
+    if (!state.useTokens(TOKEN_COST_READ_ALOUD)) {
+      router.push("/token-purchase");
+      return;
+    }
     router.push("/read-aloud");
-  };
+  }, [refreshSubscriptionStatus]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -93,7 +127,7 @@ const LandingScreen = () => {
           onPress={handleReadAloud}
         >
           <Text style={styles.outlineButtonText}>
-            {isSubscriptionActive ? "읽어주기" : "읽어주기(5토큰)"}
+            {isSubscriptionActive ? "읽어주기" : "읽어주기 5토큰"}
           </Text>
         </Pressable>
         <Pressable
@@ -104,7 +138,7 @@ const LandingScreen = () => {
           onPress={handleStartConversation}
         >
           <Text style={styles.primaryButtonText}>
-            {isSubscriptionActive ? "대화시작하기" : "대화시작하기(10토큰)"}
+            {isSubscriptionActive ? "대화시작하기" : "대화시작하기 10토큰"}
           </Text>
         </Pressable>
       </View>
