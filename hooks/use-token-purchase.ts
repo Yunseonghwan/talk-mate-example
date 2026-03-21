@@ -4,9 +4,14 @@ import { useCallback, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 
 import { ANNUAL_SUBSCRIPTION_DURATION_MS } from '@/constants/tokens';
+import {
+  getAnnualExpiresAtMs,
+  purchaseWithRevenueCat,
+} from '@/hooks/use-revenuecat';
 import { useTokenStore } from '@/stores/token-store';
+import type { PurchaseSelection } from '@/types/purchase';
 
-export type PurchaseSelection = 'annual' | number;
+export type { PurchaseSelection };
 
 type UseTokenPurchaseReturn = {
   selection: PurchaseSelection | null;
@@ -87,10 +92,15 @@ export function useTokenPurchase(): UseTokenPurchaseReturn {
       const authenticated = await authenticateForPayment();
       if (!authenticated) return;
 
+      const rc = await purchaseWithRevenueCat(selection);
+      if (!rc.ok) return;
+
       if (selection === 'annual') {
-        activateAnnualSubscription(
+        const expiresAt = getAnnualExpiresAtMs(
+          rc.customerInfo,
           Date.now() + ANNUAL_SUBSCRIPTION_DURATION_MS,
         );
+        activateAnnualSubscription(expiresAt);
       } else {
         saveTokens(selection);
       }

@@ -8,6 +8,7 @@ import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useRevenueCatInitialization } from "@/hooks/use-revenuecat";
 import { useSession } from "@/hooks/use-session";
 
 export const unstable_settings = {
@@ -17,6 +18,7 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   useSession();
+  useRevenueCatInitialization();
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
