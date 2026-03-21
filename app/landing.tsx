@@ -8,12 +8,33 @@ import MenuModal from "@/components/menu-modal";
 
 import MicSection from "@/components/mic-section";
 import { useSession } from "@/hooks/use-session";
-import { useTokenStore } from "@/stores/token-store";
+import {
+  isAnnualSubscriptionActive,
+  useTokenStore,
+} from "@/stores/token-store";
 
 const LandingScreen = () => {
   const { isInitialized, hasValidSession } = useSession();
   const tokens = useTokenStore((state) => state.tokens);
+  const hasAnnualSubscription = useTokenStore(
+    (state) => state.hasAnnualSubscription,
+  );
+  const subscriptionExpiresAt = useTokenStore(
+    (state) => state.subscriptionExpiresAt,
+  );
+  const refreshSubscriptionStatus = useTokenStore(
+    (state) => state.refreshSubscriptionStatus,
+  );
   const [menuVisible, setMenuVisible] = useState(false);
+
+  const isSubscriptionActive = isAnnualSubscriptionActive(
+    hasAnnualSubscription,
+    subscriptionExpiresAt,
+  );
+
+  useEffect(() => {
+    refreshSubscriptionStatus();
+  }, [refreshSubscriptionStatus]);
 
   useEffect(() => {
     if (isInitialized && !hasValidSession) {
@@ -49,11 +70,13 @@ const LandingScreen = () => {
 
       <MenuModal visible={menuVisible} onClose={() => setMenuVisible(false)} />
 
-      {/* Token Display */}
-      <View style={styles.tokenSection}>
-        <MaterialIcons name="toll" size={20} color="#007AFF" />
-        <Text style={styles.tokenCount}>{tokens}</Text>
-      </View>
+      {/* Token Display — 연간 구독 중에는 숨김 */}
+      {!isSubscriptionActive && (
+        <View style={styles.tokenSection}>
+          <MaterialIcons name="toll" size={20} color="#007AFF" />
+          <Text style={styles.tokenCount}>{tokens}</Text>
+        </View>
+      )}
 
       {/* Center Content */}
       <View style={styles.centerContent}>
@@ -69,7 +92,9 @@ const LandingScreen = () => {
           ]}
           onPress={handleReadAloud}
         >
-          <Text style={styles.outlineButtonText}>읽어주기(5토큰)</Text>
+          <Text style={styles.outlineButtonText}>
+            {isSubscriptionActive ? "읽어주기" : "읽어주기(5토큰)"}
+          </Text>
         </Pressable>
         <Pressable
           style={({ pressed }) => [
@@ -78,7 +103,9 @@ const LandingScreen = () => {
           ]}
           onPress={handleStartConversation}
         >
-          <Text style={styles.primaryButtonText}>대화시작하기(10토큰)</Text>
+          <Text style={styles.primaryButtonText}>
+            {isSubscriptionActive ? "대화시작하기" : "대화시작하기(10토큰)"}
+          </Text>
         </Pressable>
       </View>
     </SafeAreaView>
