@@ -11,9 +11,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.seonghwanyun.talkmateexample",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "AI와 대화하고 음성을 저장하기 위해 마이크 권한이 필요합니다.",
-        "NSSpeechRecognitionUsageDescription": "음성 인식을 위해 말하기 권한이 필요합니다."
+        "NSSpeechRecognitionUsageDescription": "음성 인식을 위해 말하기 권한이 필요합니다.",
+        "UIBackgroundModes": ["remote-notification"]
       }
     },
     "android": {
@@ -27,6 +29,7 @@
       "predictiveBackGestureEnabled": false,
       "usesCleartextTraffic": true,
       "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT",
         "android.permission.RECORD_AUDIO",
@@ -34,13 +37,35 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_AUDIO"
       ],
-      "package": "com.seonghwanyun.talkmateexample"
+      "package": "com.seonghwanyun.talkmateexample",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ],
+      "@react-native-firebase/app",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#007AFF",
+          "defaultChannel": "default",
+          "sounds": []
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",
