@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import MenuModal from "@/components/menu-modal";
+
 import MicSection from "@/components/mic-section";
 import { useSession } from "@/hooks/use-session";
 import { useTokenStore } from "@/stores/token-store";
@@ -46,10 +47,7 @@ const LandingScreen = () => {
         </Pressable>
       </View>
 
-      <MenuModal
-        visible={menuVisible}
-        onClose={() => setMenuVisible(false)}
-      />
+      <MenuModal visible={menuVisible} onClose={() => setMenuVisible(false)} />
 
       {/* Token Display */}
       <View style={styles.tokenSection}>

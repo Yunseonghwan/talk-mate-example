@@ -1,7 +1,7 @@
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import * as FileSystem from "expo-file-system/legacy";
-import { router } from "expo-router";
-import { useCallback, useEffect } from "react";
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { AudioModule, createAudioPlayer } from 'expo-audio';
+import { router } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -9,162 +9,219 @@ import {
   StyleSheet,
   Text,
   View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useRecordingPlayer } from "@/hooks/use-recording-player";
+import type { ConversationSession } from '@/stores/audio-store';
+import { useAudioStore } from '@/stores/audio-store';
 import {
-  type RecordingItem,
-  useRecordingStore,
-} from "@/stores/recording-store";
-import { formatDate, formatDurationMs } from "@/utils/format-duration";
+  deleteFileByUri,
+  formatBytes,
+  getStorageInfo,
+} from '@/utils/storage-utils';
+
+const AUTO_DELETE_AFTER_MS = 60 * 1000; // 1분
+
+const formatDate = (timestamp: number) => {
+  const d = new Date(timestamp);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${day} ${h}:${min}`;
+};
+
+const getConversationTitle = (session: ConversationSession): string => {
+  const firstUser = session.messages.find((m) => m.role === 'user');
+  if (firstUser?.content) {
+    const text = firstUser.content.trim();
+    return text.length > 30 ? `${text.slice(0, 30)}...` : text;
+  }
+  return `대화 ${formatDate(session.timestamp)}`;
+};
+
+type StorageState = {
+  totalBytes: number;
+  usedBytes: number;
+  appUsedBytes: number;
+};
 
 const ChatHistoryScreen = () => {
-  const { recordings, isLoaded, loadRecordings, removeRecording } =
-    useRecordingStore();
-  const { currentId, isPlaying, positionMs, durationMs, play, stop } =
-    useRecordingPlayer();
+  const conversations = useAudioStore((s) => s.conversations);
+  const removeConversation = useAudioStore((s) => s.removeConversation);
+  const removeRecording = useAudioStore((s) => s.removeRecording);
+  const [storage, setStorage] = useState<StorageState>({
+    totalBytes: 0,
+    usedBytes: 0,
+    appUsedBytes: 0,
+  });
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const playerRef = useRef<ReturnType<typeof createAudioPlayer> | null>(null);
+  const segmentIndexRef = useRef(0);
+  const segmentsRef = useRef<{ uri: string }[]>([]);
+
+  const refreshStorage = useCallback(() => {
+    const info = getStorageInfo();
+    setStorage({
+      totalBytes: info.totalBytes,
+      usedBytes: info.usedBytes,
+      appUsedBytes: info.appUsedBytes,
+    });
+  }, []);
 
   useEffect(() => {
-    if (!isLoaded) {
-      void loadRecordings();
+    refreshStorage();
+  }, [refreshStorage, conversations]);
+
+  // 1분이 지난 대화기록/녹음 파일 자동 삭제 (화면 진입 시 실행)
+  useEffect(() => {
+    const now = Date.now();
+    const cutoff = now - AUTO_DELETE_AFTER_MS;
+    const { conversations: convs, recordings: recs } =
+      useAudioStore.getState();
+
+    const oldConvs = convs.filter((c) => c.timestamp < cutoff);
+    const oldRecs = recs.filter((r) => r.timestamp < cutoff);
+
+    oldConvs.forEach((c) => {
+      c.segments.forEach((s) => deleteFileByUri(s.uri));
+      removeConversation(c.id);
+    });
+    oldRecs.forEach((r) => {
+      deleteFileByUri(r.uri);
+      removeRecording(r.id);
+    });
+
+    if (oldConvs.length > 0 || oldRecs.length > 0) {
+      refreshStorage();
     }
-  }, [isLoaded, loadRecordings]);
+    // 화면 마운트 시에만 실행
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const stopPlayback = useCallback(() => {
+    if (playerRef.current) {
+      playerRef.current.pause();
+      playerRef.current.remove();
+      playerRef.current = null;
+    }
+    segmentIndexRef.current = 0;
+    segmentsRef.current = [];
+    setPlayingId(null);
+  }, []);
+
+  const playNextSegment = useCallback(async () => {
+    const segs = segmentsRef.current;
+    const idx = segmentIndexRef.current;
+    if (idx >= segs.length) {
+      stopPlayback();
+      return;
+    }
+    const { uri } = segs[idx];
+    segmentIndexRef.current = idx + 1;
+
+    try {
+      await AudioModule.setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
+      const player = createAudioPlayer(uri, { updateInterval: 200 });
+      playerRef.current = player;
+      const sub = player.addListener('playbackStatusUpdate', (status) => {
+        if (status.didJustFinish) {
+          sub.remove();
+          player.remove();
+          playerRef.current = null;
+          playNextSegment();
+        }
+      });
+      player.play();
+    } catch {
+      playNextSegment();
+    }
+  }, [stopPlayback]);
 
   const handlePlay = useCallback(
-    (item: RecordingItem) => {
-      play(item.id, item.uri);
-    },
-    [play],
-  );
+    async (session: ConversationSession) => {
+      const segs = session.segments.filter((s) => s.uri);
+      if (segs.length === 0) return;
 
-  const handleStop = useCallback(() => {
-    stop();
-  }, [stop]);
+      if (playingId === session.id) {
+        stopPlayback();
+        return;
+      }
+
+      stopPlayback();
+      segmentsRef.current = segs;
+      segmentIndexRef.current = 0;
+      setPlayingId(session.id);
+      await playNextSegment();
+    },
+    [playingId, stopPlayback, playNextSegment],
+  );
 
   const handleDelete = useCallback(
-    (item: RecordingItem) => {
-      Alert.alert("녹음 삭제", "이 녹음을 삭제하시겠습니까?", [
-        { text: "취소", style: "cancel" },
-        {
-          text: "삭제",
-          style: "destructive",
-          onPress: async () => {
-            if (currentId === item.id) {
-              stop();
-            }
-            try {
-              await FileSystem.deleteAsync(item.uri, { idempotent: true });
-            } catch {
-              // 파일이 이미 삭제된 경우 무시
-            }
-            await removeRecording(item.id);
+    (session: ConversationSession) => {
+      Alert.alert(
+        '삭제 확인',
+        '이 대화기록을 삭제하시겠습니까?',
+        [
+          { text: '취소', style: 'cancel' },
+          {
+            text: '삭제',
+            style: 'destructive',
+            onPress: () => {
+              if (playingId === session.id) {
+                stopPlayback();
+              }
+              session.segments.forEach((s) => deleteFileByUri(s.uri));
+              removeConversation(session.id);
+              refreshStorage();
+            },
           },
-        },
-      ]);
+        ],
+      );
     },
-    [currentId, stop, removeRecording],
+    [playingId, stopPlayback, removeConversation, refreshStorage],
   );
 
+  const usagePercent =
+    storage.totalBytes > 0
+      ? Math.min(100, (storage.usedBytes / storage.totalBytes) * 100)
+      : 0;
+
   const renderItem = useCallback(
-    ({ item }: { item: RecordingItem }) => {
-      const isActive = currentId === item.id;
-      const isItemPlaying = isActive && isPlaying;
-
+    ({ item }: { item: ConversationSession }) => {
+      const isPlaying = playingId === item.id;
       return (
-        <View style={styles.recordingItem}>
-          <View style={styles.recordingInfo}>
-            <Text style={styles.recordingName} numberOfLines={1}>
-              {item.filename}
-            </Text>
-            <View style={styles.recordingMeta}>
-              <Text style={styles.recordingDuration}>
-                {isActive
-                  ? `${formatDurationMs(positionMs)} / ${formatDurationMs(durationMs || item.durationMs)}`
-                  : formatDurationMs(item.durationMs)}
-              </Text>
-              <Text style={styles.recordingDate}>
-                {formatDate(item.createdAt)}
-              </Text>
-            </View>
-
-            {isActive && (
-              <View style={styles.progressBarBackground}>
-                <View
-                  style={[
-                    styles.progressBarFill,
-                    {
-                      width: `${durationMs > 0 ? (positionMs / durationMs) * 100 : 0}%`,
-                    },
-                  ]}
-                />
-              </View>
-            )}
-          </View>
-
-          <View style={styles.recordingActions}>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {getConversationTitle(item)}
+          </Text>
+          <Text style={styles.cardDate}>{formatDate(item.timestamp)}</Text>
+          <View style={styles.cardActions}>
             <Pressable
-              style={({ pressed }) => [
-                styles.actionButton,
-                isItemPlaying && styles.activePlayButton,
-                pressed && styles.actionButtonPressed,
-              ]}
+              style={[styles.iconButton, isPlaying && styles.iconButtonActive]}
               onPress={() => handlePlay(item)}
             >
               <MaterialIcons
-                name={isItemPlaying ? "pause" : "play-arrow"}
-                size={22}
-                color={isItemPlaying ? "#fff" : "#007AFF"}
+                name={isPlaying ? 'stop' : 'play-arrow'}
+                size={24}
+                color={isPlaying ? '#fff' : '#0066FF'}
               />
             </Pressable>
-
-            {isActive && (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.actionButton,
-                  pressed && styles.actionButtonPressed,
-                ]}
-                onPress={handleStop}
-              >
-                <MaterialIcons name="stop" size={22} color="#6B7280" />
-              </Pressable>
-            )}
-
             <Pressable
-              style={({ pressed }) => [
-                styles.actionButton,
-                pressed && styles.actionButtonPressed,
-              ]}
+              style={[styles.iconButton, styles.deleteButton]}
               onPress={() => handleDelete(item)}
             >
-              <MaterialIcons name="delete-outline" size={22} color="#EF4444" />
+              <MaterialIcons name="delete-outline" size={24} color="#E53935" />
             </Pressable>
           </View>
         </View>
       );
     },
-    [
-      currentId,
-      isPlaying,
-      positionMs,
-      durationMs,
-      handlePlay,
-      handleStop,
-      handleDelete,
-    ],
-  );
-
-  const renderEmpty = useCallback(
-    () => (
-      <View style={styles.emptyContainer}>
-        <MaterialIcons name="mic-off" size={48} color="#D1D5DB" />
-        <Text style={styles.emptyTitle}>녹음 기록이 없습니다</Text>
-        <Text style={styles.emptySubtitle}>
-          대화를 시작하면 녹음이 저장됩니다
-        </Text>
-      </View>
-    ),
-    [],
+    [playingId, handlePlay, handleDelete],
   );
 
   return (
@@ -177,16 +234,40 @@ const ChatHistoryScreen = () => {
         <View style={styles.placeholder} />
       </View>
 
+      <View style={styles.storageSection}>
+        <View style={styles.storageRow}>
+          <Text style={styles.storageLabel}>총 저장용량</Text>
+          <Text style={styles.storageValue}>
+            {formatBytes(storage.totalBytes)}
+          </Text>
+        </View>
+        <View style={styles.storageRow}>
+          <Text style={styles.storageLabel}>사용 중</Text>
+          <Text style={styles.storageValue}>
+            {formatBytes(storage.usedBytes)} / {formatBytes(storage.totalBytes)}
+          </Text>
+        </View>
+        <View style={styles.gaugeBar}>
+          <View
+            style={[styles.gaugeFill, { width: `${usagePercent}%` }]}
+          />
+        </View>
+        <Text style={styles.appStorageText}>
+          앱 사용량: {formatBytes(storage.appUsedBytes)}
+        </Text>
+      </View>
+
       <FlatList
-        data={recordings}
+        data={conversations}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
-        ListEmptyComponent={renderEmpty}
-        contentContainerStyle={
-          recordings.length === 0 ? styles.listEmpty : styles.listContent
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <MaterialIcons name="chat-bubble-outline" size={48} color="#9BA1A6" />
+            <Text style={styles.emptyText}>저장된 대화기록이 없습니다</Text>
+          </View>
         }
-        showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
     </SafeAreaView>
   );
@@ -195,117 +276,122 @@ const ChatHistoryScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: '#F6F8FA',
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E6E8EB',
   },
   backButton: {
     width: 40,
     height: 40,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#11181C",
+    fontWeight: '600',
+    color: '#11181C',
   },
   placeholder: {
     width: 40,
   },
+  storageSection: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+  },
+  storageRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  storageLabel: {
+    fontSize: 14,
+    color: '#687076',
+  },
+  storageValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#11181C',
+  },
+  gaugeBar: {
+    height: 8,
+    backgroundColor: '#E6E8EB',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  gaugeFill: {
+    height: '100%',
+    backgroundColor: '#0066FF',
+    borderRadius: 4,
+  },
+  appStorageText: {
+    fontSize: 12,
+    color: '#9BA1A6',
+    marginTop: 8,
+  },
   listContent: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
-  listEmpty: {
-    flex: 1,
-  },
-  recordingItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    gap: 12,
-  },
-  recordingInfo: {
-    flex: 1,
-  },
-  recordingName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#11181C",
-  },
-  recordingMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 4,
-  },
-  recordingDuration: {
-    fontSize: 13,
-    color: "#6B7280",
-    fontVariant: ["tabular-nums"],
-  },
-  recordingDate: {
-    fontSize: 13,
-    color: "#9CA3AF",
-  },
-  progressBarBackground: {
-    height: 3,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 1.5,
-    marginTop: 8,
-    overflow: "hidden",
-  },
-  progressBarFill: {
-    height: "100%",
-    backgroundColor: "#007AFF",
-    borderRadius: 1.5,
-  },
-  recordingActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  actionButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    justifyContent: "center",
-    alignItems: "center",
+    borderColor: '#E6E8EB',
   },
-  activePlayButton: {
-    backgroundColor: "#007AFF",
-    borderColor: "#007AFF",
-  },
-  actionButtonPressed: {
-    opacity: 0.6,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: "#F3F4F6",
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-  },
-  emptyTitle: {
+  cardTitle: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#6B7280",
-    marginTop: 8,
+    fontWeight: '600',
+    color: '#11181C',
+    marginBottom: 8,
   },
-  emptySubtitle: {
-    fontSize: 14,
-    color: "#9CA3AF",
+  cardDate: {
+    fontSize: 13,
+    color: '#687076',
+    marginBottom: 12,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E8F0FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconButtonActive: {
+    backgroundColor: '#0066FF',
+  },
+  deleteButton: {
+    backgroundColor: '#FFEBEE',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: '#9BA1A6',
+    marginTop: 12,
   },
 });
 
