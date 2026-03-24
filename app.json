@@ -45,6 +45,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "@bravemobile/react-native-code-push",
       [
         "expo-build-properties",
         {
@@ -52,7 +53,7 @@
             "minSdkVersion": 24
           },
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "15.5"
           }
         }
       ],
@@ -89,10 +90,7 @@
       [
         "react-native-permissions",
         {
-          "iosPermissions": [
-            "Microphone",
-            "SpeechRecognition"
-          ]
+          "iosPermissions": ["Microphone", "SpeechRecognition"]
         }
       ],
       "expo-audio"

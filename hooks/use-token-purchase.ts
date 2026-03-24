@@ -1,15 +1,10 @@
-import * as LocalAuthentication from 'expo-local-authentication';
-import { router } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import { Alert, Platform } from 'react-native';
+import * as LocalAuthentication from "expo-local-authentication";
+import { router } from "expo-router";
+import { useCallback, useRef, useState } from "react";
+import { Alert, Platform } from "react-native";
 
-import { ANNUAL_SUBSCRIPTION_DURATION_MS } from '@/constants/tokens';
-import {
-  getAnnualExpiresAtMs,
-  purchaseWithRevenueCat,
-} from '@/hooks/use-revenuecat';
-import { useTokenStore } from '@/stores/token-store';
-import type { PurchaseSelection } from '@/types/purchase';
+import { useTokenStore } from "@/stores/token-store";
+import type { PurchaseSelection } from "@/types/purchase";
 
 export type { PurchaseSelection };
 
@@ -26,14 +21,14 @@ type UseTokenPurchaseReturn = {
  * 결제 전 생체인증(또는 기기 비밀번호). 웹은 생체 미지원이므로 확인 대화상자로 대체.
  */
 async function authenticateForPayment(): Promise<boolean> {
-  if (Platform.OS === 'web') {
+  if (Platform.OS === "web") {
     return new Promise((resolve) => {
       Alert.alert(
-        '결제 확인',
-        '웹에서는 생체 인증을 사용할 수 없습니다. 결제를 진행할까요?',
+        "결제 확인",
+        "웹에서는 생체 인증을 사용할 수 없습니다. 결제를 진행할까요?",
         [
-          { text: '취소', style: 'cancel', onPress: () => resolve(false) },
-          { text: '진행', onPress: () => resolve(true) },
+          { text: "취소", style: "cancel", onPress: () => resolve(false) },
+          { text: "진행", onPress: () => resolve(true) },
         ],
       );
     });
@@ -42,8 +37,8 @@ async function authenticateForPayment(): Promise<boolean> {
   const hasHardware = await LocalAuthentication.hasHardwareAsync();
   if (!hasHardware) {
     Alert.alert(
-      '생체인증 불가',
-      '이 기기는 생체 인증 또는 보안 인증을 지원하지 않습니다.',
+      "생체인증 불가",
+      "이 기기는 생체 인증 또는 보안 인증을 지원하지 않습니다.",
     );
     return false;
   }
@@ -51,16 +46,16 @@ async function authenticateForPayment(): Promise<boolean> {
   const enrolled = await LocalAuthentication.isEnrolledAsync();
   if (!enrolled) {
     Alert.alert(
-      '생체인증 미등록',
-      '설정에서 Face ID·지문 등 생체 인증을 등록한 뒤 다시 시도해 주세요.',
+      "생체인증 미등록",
+      "설정에서 Face ID·지문 등 생체 인증을 등록한 뒤 다시 시도해 주세요.",
     );
     return false;
   }
 
   const result = await LocalAuthentication.authenticateAsync({
-    promptMessage: '결제를 진행하려면 인증이 필요합니다',
-    cancelLabel: '취소',
-    fallbackLabel: '비밀번호 사용',
+    promptMessage: "결제를 진행하려면 인증이 필요합니다",
+    cancelLabel: "취소",
+    fallbackLabel: "비밀번호 사용",
   });
 
   return result.success;
@@ -76,7 +71,7 @@ export function useTokenPurchase(): UseTokenPurchaseReturn {
   );
 
   const selectAnnual = useCallback((): void => {
-    setSelection('annual');
+    setSelection("annual");
   }, []);
 
   const selectTokenPackage = useCallback((amount: number): void => {
@@ -92,18 +87,7 @@ export function useTokenPurchase(): UseTokenPurchaseReturn {
       const authenticated = await authenticateForPayment();
       if (!authenticated) return;
 
-      const rc = await purchaseWithRevenueCat(selection);
-      if (!rc.ok) return;
-
-      if (selection === 'annual') {
-        const expiresAt = getAnnualExpiresAtMs(
-          rc.customerInfo,
-          Date.now() + ANNUAL_SUBSCRIPTION_DURATION_MS,
-        );
-        activateAnnualSubscription(expiresAt);
-      } else {
-        saveTokens(selection);
-      }
+      saveTokens(selection as number);
 
       router.back();
     } finally {

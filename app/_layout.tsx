@@ -10,7 +10,7 @@ import "react-native-reanimated";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 import { usePushNotifications } from "@/hooks/use-push-notifications";
-import { useRevenueCatInitialization } from "@/hooks/use-revenuecat";
+
 import { useSession } from "@/hooks/use-session";
 
 export const unstable_settings = {
@@ -20,7 +20,6 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   useSession();
-  useRevenueCatInitialization();
   usePushNotifications();
 
   return (
