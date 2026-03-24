@@ -27,3 +27,17 @@ npx expo run:android
 ## APNs (iOS)
 
 Firebase 콘솔에 **APNs 인증 키 또는 인증서**를 업로드해야 원격 푸시가 동작합니다.
+
+## CocoaPods: `GoogleUtilities` / Swift pods (정적 라이브러리)
+
+`FirebaseCoreInternal` 등이 `GoogleUtilities` 모듈 맵 없이 실패하면, `plugins/with-firebase-modular-headers.js` 가 Podfile에 `use_modular_headers!` 를 넣습니다.
+
+설정 반영 후:
+
+```bash
+cd ios && pod install --repo-update
+```
+
+또는 `npx expo prebuild --clean` 후 다시 빌드합니다.
+
+여전히 충돌하면 `app.json` 의 `expo-build-properties` → `ios` 에 `useFrameworks: "static"` 을 검토할 수 있습니다 (다른 Pod과 상호작용이 있을 수 있음).
